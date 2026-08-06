@@ -46,15 +46,19 @@ CREATE TABLE IF NOT EXISTS join_requests (
 );
 """)
 
-# Siz bergan 3 ta yopiq kanalni avtomatik bazaga qo'shish
+# Barcha ko'rsatilgan (oddiy va yopiq) kanallarni avtomatik yangilash
 default_channels = [
     ("-1004389190277", "https://t.me/+awIjoAmT18Q1MDg0"),
     ("-1004436570555", "https://t.me/+zAA3PfFkw75iNDY0"),
-    ("-1003956320113", "https://t.me/+EYnqZPmzAnE0OGM8")
+    ("-1003956320113", "https://t.me/+EYnqZPmzAnE0OGM8"),
+    ("-1003767593017", "https://t.me/+igbljkrdLqwwNzk0"),
+    ("-1004464851017", "https://t.me/+t30YnzAM5iFlNGVk"),
+    ("-1004397371739", "https://t.me/+D6z2xHlXyfwyZDU0"),
+    ("@kinolarimuzhub", "https://t.me/kinolarimuzhub") # Oddiy (ochiq) kanal
 ]
 
 for ch_id, ch_url in default_channels:
-    cursor.execute("INSERT OR IGNORE INTO channels (channel_id, url) VALUES (?, ?)", (ch_id, ch_url))
+    cursor.execute("INSERT OR REPLACE INTO channels (channel_id, url) VALUES (?, ?)", (ch_id, ch_url))
 
 conn.commit()
 
@@ -79,8 +83,9 @@ def admin_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Umumiy Statistika", callback_data="admin_stats")],
         [InlineKeyboardButton(text="📢 Xabar yuborish (Reklama)", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="➕ Majburiy Kanal qo'shish", callback_data="admin_add_channel")],
-        [InlineKeyboardButton(text="➖ Majburiy Kanal o'chirish", callback_data="admin_del_channel")]
+        [InlineKeyboardButton(text="➕ Ochiq kanal qo'shish", callback_data="admin_add_pub")],
+        [InlineKeyboardButton(text="➕ Yopiq kanal qo'shish", callback_data="admin_add_priv")],
+        [InlineKeyboardButton(text="➖ Majburiy kanal o'chirish", callback_data="admin_del_channel")]
     ])
 
 def premium_menu():
@@ -109,15 +114,21 @@ async def check_subscriptions(user_id: int):
     
     for (ch_id,) in channels:
         try:
-            # chat_id ni int ga o'tkazish muhim, aks holda yopiq kanallarda xato beradi!
-            member = await bot.get_chat_member(chat_id=int(ch_id), user_id=user_id)
+            # ID ni aniqlash: agar "@" qatnashsa string (ochiq), aks holda int (yopiq)
+            chat_id = ch_id if ch_id.startswith('@') else int(ch_id)
+            member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+            
             if member.status in ['left', 'kicked']:
-                # Yopiq kanal uchun so'rov yuborilganini tekshiramiz
+                # Agar a'zo bo'lmasa, uni ko'rib chiqamiz:
+                if str(chat_id).startswith('@'):
+                    return False # Ochiq kanalda to'g'ridan-to'g'ri xato beradi
+                
+                # Yopiq kanal uchun so'rov bazasida borligini tekshiramiz
                 cursor.execute("SELECT * FROM join_requests WHERE user_id=? AND channel_id=?", (user_id, ch_id))
                 if not cursor.fetchone():
                     return False
         except Exception as e:
-            # Agar bot tekshira olmasa, so'rov yuborilganlar ro'yxatidan qidiradi
+            # Agar bot foydalanuvchini tekshira olmasa (masalan u kanalga umuman so'rov bermagan)
             cursor.execute("SELECT * FROM join_requests WHERE user_id=? AND channel_id=?", (user_id, ch_id))
             if not cursor.fetchone():
                 return False
@@ -254,7 +265,6 @@ async def ref_btn(message: Message):
     bot_info = await bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
     
-    # Ulashish uchun tayyor matn (bo'sh joylar xatosiz ishlashi uchun URL encode qilinadi)
     share_text = urllib.parse.quote("🎁 Telegram Premium va Stars'ni bepul qo'lga kiritmoqchimisiz? Shu havola orqali botga kiring va sovg'alarga ega bo'ling! 👇")
     share_url = f"https://t.me/share/url?url={ref_link}&text={share_text}"
     
@@ -268,11 +278,9 @@ async def ref_btn(message: Message):
         "👇 <b>Pastdagi tugma orqali xabarni to'g'ridan-to'g'ri do'stlaringizga yuboring!</b>"
     )
     
-    # Inline ulashish tugmasi
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📤 Do'stlarga ulashish (Share)", url=share_url)]
     ])
-    
     await message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 @router.message(F.text == "💳 To'lovlar tarixi")
@@ -293,7 +301,6 @@ async def process_buy(call: CallbackQuery):
     if ref_count < 5:
         bot_info = await bot.get_me()
         ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
-        
         share_text = urllib.parse.quote("🎁 Telegram Premium va Stars'ni bepul qo'lga kiritmoqchimisiz? Shu havola orqali botga kiring va sovg'alarga ega bo'ling! 👇")
         share_url = f"https://t.me/share/url?url={ref_link}&text={share_text}"
         
@@ -315,7 +322,6 @@ async def process_buy(call: CallbackQuery):
             f"📥 <i>Xizmatni faollashtirish uchun bot adminiga ({ADMIN_USERNAME}) to'g'ridan-to'g'ri murojaat qiling, u tez orada sizga javob beradi!</i>",
             parse_mode=ParseMode.HTML
         )
-    
     await call.answer()
 
 # ================= ADMIN PANEL =================
@@ -381,15 +387,16 @@ async def send_broadcast(message: Message, state: FSMContext):
     )
     await state.clear()
 
-# Kanal qo'shish
-@router.callback_query(F.data == "admin_add_channel")
+# 2 ta tugma orqali Kanal qo'shish (Ochiq va Yopiq)
+@router.callback_query(F.data.in_(["admin_add_pub", "admin_add_priv"]))
 async def ask_channel_id(call: CallbackQuery, state: FSMContext):
     if call.from_user.id == ADMIN_ID:
-        await call.message.answer(
-            "➕ <b>Majburiy kanal qo'shish:</b>\n\n"
-            "✍️ <i>Kanal ID sini yuboring (Masalan: <code>-100123456789</code>):</i>",
-            parse_mode=ParseMode.HTML
-        )
+        if call.data == "admin_add_pub":
+            text = "➕ <b>Ochiq kanal qo'shish:</b>\n\n✍️ <i>Kanalning username ID sini (Masalan: <code>@kinolarimuzhub</code>) yuboring:</i>"
+        else:
+            text = "➕ <b>Yopiq kanal qo'shish:</b>\n\n✍️ <i>Kanalning maxfiy ID sini (Masalan: <code>-100123456789</code>) yuboring:</i>"
+        
+        await call.message.answer(text, parse_mode=ParseMode.HTML)
         await state.set_state(AdminState.add_channel_id)
         await call.answer()
 
@@ -397,8 +404,8 @@ async def ask_channel_id(call: CallbackQuery, state: FSMContext):
 async def get_channel_id(message: Message, state: FSMContext):
     await state.update_data(channel_id=message.text.strip())
     await message.answer(
-        "🔗 <b>Endi kanal havolasini yuboring!</b>\n\n"
-        "<i>(Masalan: https://t.me/kanal_nomi yoki qo'shilish uchun yopiq havola)</i>",
+        "🔗 <b>Endi obuna uchun kanal havolasini yuboring!</b>\n\n"
+        "<i>(Masalan: https://t.me/... yoki qo'shilish uchun havola)</i>",
         parse_mode=ParseMode.HTML
     )
     await state.set_state(AdminState.add_channel_url)
@@ -414,7 +421,7 @@ async def save_channel(message: Message, state: FSMContext):
     
     await message.answer(
         "✅ <b>Majburiy kanal bazaga muvaffaqiyatli qo'shildi!</b>\n\n"
-        "<i>Eslatma: Botni shu kanalga Admin qilishni va unga ruxsatlarni to'liq berishni unutmang!</i>", 
+        "<i>Eslatma: Botni shu kanalga to'liq ruxsatlar bilan Admin qilishni unutmang!</i>", 
         parse_mode=ParseMode.HTML
     )
     await state.clear()
