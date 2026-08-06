@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sqlite3
+import urllib.parse
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
@@ -44,6 +45,17 @@ CREATE TABLE IF NOT EXISTS join_requests (
     UNIQUE(user_id, channel_id)
 );
 """)
+
+# Siz bergan 3 ta yopiq kanalni avtomatik bazaga qo'shish
+default_channels = [
+    ("-1004389190277", "https://t.me/+awIjoAmT18Q1MDg0"),
+    ("-1004436570555", "https://t.me/+zAA3PfFkw75iNDY0"),
+    ("-1003956320113", "https://t.me/+EYnqZPmzAnE0OGM8")
+]
+
+for ch_id, ch_url in default_channels:
+    cursor.execute("INSERT OR IGNORE INTO channels (channel_id, url) VALUES (?, ?)", (ch_id, ch_url))
+
 conn.commit()
 
 # ================= FSM HOLATLAR =================
@@ -97,14 +109,15 @@ async def check_subscriptions(user_id: int):
     
     for (ch_id,) in channels:
         try:
-            member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
+            # chat_id ni int ga o'tkazish muhim, aks holda yopiq kanallarda xato beradi!
+            member = await bot.get_chat_member(chat_id=int(ch_id), user_id=user_id)
             if member.status in ['left', 'kicked']:
                 # Yopiq kanal uchun so'rov yuborilganini tekshiramiz
                 cursor.execute("SELECT * FROM join_requests WHERE user_id=? AND channel_id=?", (user_id, ch_id))
                 if not cursor.fetchone():
                     return False
-        except Exception:
-            # Agar bot foydalanuvchini tekshira olmasa (masalan, yopiq kanalga kirmagan bo'lsa), so'rovni tekshiramiz
+        except Exception as e:
+            # Agar bot tekshira olmasa, so'rov yuborilganlar ro'yxatidan qidiradi
             cursor.execute("SELECT * FROM join_requests WHERE user_id=? AND channel_id=?", (user_id, ch_id))
             if not cursor.fetchone():
                 return False
@@ -241,16 +254,26 @@ async def ref_btn(message: Message):
     bot_info = await bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
     
+    # Ulashish uchun tayyor matn (bo'sh joylar xatosiz ishlashi uchun URL encode qilinadi)
+    share_text = urllib.parse.quote("🎁 Telegram Premium va Stars'ni bepul qo'lga kiritmoqchimisiz? Shu havola orqali botga kiring va sovg'alarga ega bo'ling! 👇")
+    share_url = f"https://t.me/share/url?url={ref_link}&text={share_text}"
+    
     text = (
-        "🤝 <b>Do'stlarni taklif qilish va bonuslar olish dasturi!</b>\n\n"
-        "🎁 <i>Siz shaxsiy havolangiz orqali do'stlaringizni taklif qilib, bepul Telegram Premium yoki Stars yutib olish imkoniyatiga egasiz!</i>\n\n"
-        f"📊 <b>Siz taklif qilgan jami do'stlar soni:</b> <code>{ref_count} ta</code>\n"
-        "🎯 <b>Asosiy maqsad:</b> 5 ta do'st (Sovg'a olish uchun minimal talab)\n\n"
+        "🤝 <b>Do'stlarni taklif qilish va sovg'alar olish dasturi!</b>\n\n"
+        "🎁 <i>Maxsus havolangiz orqali do'stlaringizni taklif qiling va bepul Telegram Premium yoki Stars yutib oling!</i>\n\n"
+        f"📊 <b>Taklif qilgan do'stlaringiz soni:</b> <code>{ref_count} ta</code>\n"
+        "🎯 <b>Asosiy maqsad:</b> 5 ta do'st (Sovg'a olish uchun eng kamida 5 kishi qo'shilishi kerak)\n\n"
         "🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n"
         f"<code>{ref_link}</code>\n\n"
-        "📥 <i>Ushbu havolani nusxalang va do'stlaringizga yuboring. Ular kanallarimizga obuna bo'lishi bilanoq, sizga bonus yoziladi!</i> 🎉"
+        "👇 <b>Pastdagi tugma orqali xabarni to'g'ridan-to'g'ri do'stlaringizga yuboring!</b>"
     )
-    await message.answer(text, parse_mode=ParseMode.HTML)
+    
+    # Inline ulashish tugmasi
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📤 Do'stlarga ulashish (Share)", url=share_url)]
+    ])
+    
+    await message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 @router.message(F.text == "💳 To'lovlar tarixi")
 async def payments_btn(message: Message):
@@ -270,6 +293,14 @@ async def process_buy(call: CallbackQuery):
     if ref_count < 5:
         bot_info = await bot.get_me()
         ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
+        
+        share_text = urllib.parse.quote("🎁 Telegram Premium va Stars'ni bepul qo'lga kiritmoqchimisiz? Shu havola orqali botga kiring va sovg'alarga ega bo'ling! 👇")
+        share_url = f"https://t.me/share/url?url={ref_link}&text={share_text}"
+        
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Do'stlarga ulashish", url=share_url)]
+        ])
+        
         text = (
             "⚠️ <b>Kechirasiz, xaridni davom ettirish uchun shartni bajarmadingiz!</b>\n\n"
             "🎁 <i>Bepul xizmatlardan foydalanish yoki xaridni tasdiqlash uchun kamida 5 ta do'stingizni botga taklif qilishingiz majburiydir!</i>\n\n"
@@ -277,7 +308,7 @@ async def process_buy(call: CallbackQuery):
             "🔗 <b>Shaxsiy havolangiz orqali do'stlaringizni taklif qiling:</b>\n"
             f"<code>{ref_link}</code>"
         )
-        await call.message.answer(text, parse_mode=ParseMode.HTML)
+        await call.message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
     else:
         await call.message.answer(
             f"🎉 <b>Ajoyib! Siz yetarli do'st taklif qilgansiz.</b>\n\n"
@@ -364,7 +395,7 @@ async def ask_channel_id(call: CallbackQuery, state: FSMContext):
 
 @router.message(AdminState.add_channel_id)
 async def get_channel_id(message: Message, state: FSMContext):
-    await state.update_data(channel_id=message.text)
+    await state.update_data(channel_id=message.text.strip())
     await message.answer(
         "🔗 <b>Endi kanal havolasini yuboring!</b>\n\n"
         "<i>(Masalan: https://t.me/kanal_nomi yoki qo'shilish uchun yopiq havola)</i>",
@@ -376,14 +407,14 @@ async def get_channel_id(message: Message, state: FSMContext):
 async def save_channel(message: Message, state: FSMContext):
     data = await state.get_data()
     channel_id = data['channel_id']
-    url = message.text
+    url = message.text.strip()
     
     cursor.execute("INSERT OR REPLACE INTO channels (channel_id, url) VALUES (?, ?)", (channel_id, url))
     conn.commit()
     
     await message.answer(
         "✅ <b>Majburiy kanal bazaga muvaffaqiyatli qo'shildi!</b>\n\n"
-        "<i>Eslatma: Botni shu kanalga Admin qilishni unutmang, aks holda tekshira olmaydi!</i>", 
+        "<i>Eslatma: Botni shu kanalga Admin qilishni va unga ruxsatlarni to'liq berishni unutmang!</i>", 
         parse_mode=ParseMode.HTML
     )
     await state.clear()
