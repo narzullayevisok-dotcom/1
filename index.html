@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HarfPay</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg-1:#0b0c14;
+  --bg-2:#141726;
+  --accent-1:#6d5efc;
+  --accent-2:#8f7bff;
+  --accent-glow: rgba(109,94,252,.45);
+  --green:#3ddc84;
+  --red:#ff5c7a;
+  --amber:#ffb547;
+  --glass: rgba(255,255,255,.06);
+  --glass-border: rgba(255,255,255,.12);
+  --text-1:#f4f4fb;
+  --text-2:#a7abc3;
+  --text-3:#6a6e8a;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{
+  height:100%;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(109,94,252,.25), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(143,123,255,.18), transparent 55%),
+    var(--bg-1);
+  color:var(--text-1);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+#app{ max-width:520px; margin:0 auto; min-height:100vh; padding:16px 16px 96px; position:relative; }
+
+::-webkit-scrollbar{ width:0; height:0; }
+
+.glass{
+  background:var(--glass);
+  border:1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius:20px;
+}
+.card{ padding:18px; margin-bottom:14px; }
+.hstack{ display:flex; align-items:center; }
+.spacer{ flex:1; }
+
+/* Header */
+.topbar{ display:flex; align-items:center; justify-content:space-between; padding:6px 2px 18px; }
+.brand{ display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px; letter-spacing:.2px; }
+.brand .dot{ width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); box-shadow:0 0 14px var(--accent-glow); }
+.mode-switch{ display:flex; gap:6px; }
+.mode-btn{
+  font-size:12px; font-weight:700; padding:8px 12px; border-radius:12px; cursor:pointer;
+  background:var(--glass); border:1px solid var(--glass-border); color:var(--text-2);
+  transition:.2s;
+}
+.mode-btn.active{ color:#fff; background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border-color:transparent; box-shadow:0 6px 18px var(--accent-glow); }
+
+/* Profile hero */
+.hero{
+  background:linear-gradient(135deg, var(--accent-1), #4b3bd6 70%);
+  border-radius:24px; padding:22px; margin-bottom:16px; position:relative; overflow:hidden;
+  box-shadow: 0 20px 40px -18px rgba(109,94,252,.55);
+}
+.hero::after{
+  content:""; position:absolute; width:220px; height:220px; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,255,255,.25), transparent 65%);
+  top:-90px; right:-60px;
+}
+.hero .label{ font-size:13px; opacity:.85; font-weight:600; }
+.hero .amount{ font-size:34px; font-weight:800; margin:6px 0 16px; }
+.hero .amount span{ font-size:17px; font-weight:600; opacity:.85; }
+.btn{
+  border:none; border-radius:14px; padding:14px 18px; font-weight:700; font-size:15px;
+  cursor:pointer; transition:.15s transform,.15s box-shadow; width:100%;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn:active{ transform:scale(.97); }
+.btn-primary{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; box-shadow:0 10px 24px -8px var(--accent-glow); }
+.btn-white{ background:#fff; color:var(--accent-1); }
+.btn-ghost{ background:var(--glass); color:var(--text-1); border:1px solid var(--glass-border); }
+.btn-danger{ background:linear-gradient(135deg,#ff5c7a,#c93b58); color:#fff; }
+.btn-green{ background:linear-gradient(135deg,#3ddc84,#26a866); color:#032b16; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* tabs */
+.tabs{ display:flex; gap:8px; margin-bottom:16px; background:var(--glass); border:1px solid var(--glass-border); padding:5px; border-radius:16px; }
+.tab{ flex:1; text-align:center; padding:10px; border-radius:12px; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; }
+.tab.active{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; }
+
+h2.section-title{ font-size:15px; font-weight:800; margin:6px 0 12px; color:var(--text-1); }
+
+/* task card */
+.task{ display:flex; align-items:center; gap:14px; padding:16px; margin-bottom:12px; }
+.task .letter-box{
+  width:52px; height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+  font-size:24px; font-weight:800; background:linear-gradient(135deg, rgba(109,94,252,.35), rgba(143,123,255,.15));
+  border:1px solid var(--glass-border);
+}
+.task .info{ flex:1; min-width:0; }
+.task .name{ font-weight:700; font-size:15px; }
+.task .cat{ font-size:11px; color:var(--text-3); letter-spacing:.6px; text-transform:uppercase; margin-top:2px; }
+.task .price{ text-align:right; }
+.task .price .som{ color:var(--green); font-weight:800; font-size:15px; }
+.task .price .unit{ font-size:11px; color:var(--text-3); }
+.task.done{ opacity:.5; }
+.task-btn{ margin-top:10px; }
+
+/* draw screen */
+.draw-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.draw-top .chip{ background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:8px 12px; font-size:12px; font-weight:700; color:var(--text-2); }
+.canvas-wrap{ background:#fff; border-radius:22px; overflow:hidden; margin-bottom:16px; box-shadow:0 20px 40px -16px rgba(0,0,0,.5); }
+canvas{ display:block; touch-action:none; width:100%; height:340px; }
+.draw-actions{ display:flex; gap:10px; }
+.icon-btn{ width:52px; height:52px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-border); color:var(--text-1); font-size:20px; cursor:pointer; }
+
+/* stats */
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.stat-box{ padding:18px; text-align:left; }
+.stat-box .num{ font-size:24px; font-weight:800; }
+.stat-box .lbl{ font-size:12px; color:var(--text-2); margin-top:4px; }
+.level-row{ display:flex; align-items:center; gap:14px; padding:18px; }
+.level-ring{ width:48px; height:48px; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(109,94,252,.7), rgba(109,94,252,.15)); }
+
+/* withdraw */
+.avail{ text-align:center; padding:22px; }
+.avail .lbl{ color:var(--text-2); font-size:13px; }
+.avail .num{ font-size:34px; font-weight:800; margin-top:6px; }
+.seg{ display:flex; gap:8px; margin-bottom:14px; }
+.seg-btn{ flex:1; padding:12px; border-radius:14px; text-align:center; font-weight:700; font-size:13px; cursor:pointer; background:var(--glass); border:1px solid var(--glass-border); color:var(--text-2); }
+.seg-btn.active{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; }
+input[type=text], input[type=number], input[type=tel], textarea, select{
+  width:100%; padding:14px 16px; border-radius:14px; border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.04); color:var(--text-1); font-size:15px; margin-bottom:10px; outline:none;
+}
+input::placeholder{ color:var(--text-3); }
+.bank-row{ display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; border:1px solid var(--glass-border); background:rgba(255,255,255,.03); margin-bottom:10px; cursor:pointer; }
+.bank-row.active{ border-color:var(--accent-1); background:rgba(109,94,252,.12); }
+.bank-row .ico{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; }
+.bank-row .radio{ margin-left:auto; width:18px; height:18px; border-radius:50%; border:2px solid var(--glass-border); }
+.bank-row.active .radio{ border-color:var(--accent-1); background:radial-gradient(circle,var(--accent-1) 40%, transparent 44%); }
+.hint{ font-size:12px; color:var(--text-3); text-align:center; margin-top:10px; }
+
+/* modal + toast */
+.overlay{ position:fixed; inset:0; background:rgba(6,7,14,.72); backdrop-filter:blur(6px); display:flex; align-items:flex-end; justify-content:center; z-index:60; }
+.overlay.center{ align-items:center; padding:16px; }
+.sheet{ width:100%; max-width:520px; background:var(--bg-2); border:1px solid var(--glass-border); border-radius:26px 26px 0 0; padding:22px 18px 28px; }
+.overlay.center .sheet{ border-radius:24px; }
+.sheet .title{ font-size:17px; font-weight:800; margin-bottom:8px; }
+.sheet .desc{ font-size:14px; color:var(--text-2); line-height:1.5; margin-bottom:18px; }
+
+/* Ad overlay */
+.ad-overlay{ position:fixed; inset:0; background:#000; z-index:80; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.ad-overlay .ad-media{ max-width:100%; max-height:78vh; object-fit:contain; }
+.ad-overlay .ad-text{ padding:28px; text-align:center; font-size:18px; font-weight:700; max-width:520px; }
+.ad-overlay .ad-topbar{ position:absolute; top:14px; right:14px; left:14px; display:flex; justify-content:space-between; align-items:center; }
+.ad-overlay .ad-badge{ font-size:11px; font-weight:700; color:var(--text-2); background:rgba(255,255,255,.08); padding:5px 10px; border-radius:10px; }
+.ad-overlay .ad-skip{ font-size:13px; font-weight:700; color:var(--text-1); background:rgba(255,255,255,.14); padding:8px 14px; border-radius:12px; cursor:pointer; border:1px solid var(--glass-border); }
+.ad-overlay .ad-skip.disabled{ opacity:.45; pointer-events:none; }
+
+.theme-row{ display:flex; gap:12px; flex-wrap:wrap; }
+.theme-dot{ width:34px; height:34px; border-radius:50%; cursor:pointer; border:2px solid transparent; box-shadow:0 2px 10px rgba(0,0,0,.35); }
+.theme-dot.active{ border-color:#fff; transform:scale(1.08); }
+.channel-row{ display:flex; align-items:center; gap:10px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--glass-border); margin-bottom:10px; }
+.channel-row .name{ flex:1; font-weight:700; font-size:14px; }
+
+.toast{ position:fixed; left:16px; right:16px; bottom:96px; z-index:70; }
+.toast-inner{ padding:16px 18px; border-radius:16px; font-size:14px; font-weight:600; text-align:center; box-shadow:0 14px 30px -12px rgba(0,0,0,.6); }
+.toast-success{ background:linear-gradient(135deg,#1c8a54,#0f6b3f); color:#eaffef; }
+.toast-error{ background:linear-gradient(135deg,#a8324a,#7c2038); color:#ffecef; }
+.toast-info{ background:linear-gradient(135deg,#3a3f66,#2a2d4d); color:#eef; }
+
+/* bottom nav */
+.bottom-nav{
+  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  background:linear-gradient(0deg, rgba(11,12,20,.98), rgba(11,12,20,.9));
+  border-top:1px solid var(--glass-border);
+  padding:10px 18px calc(10px + env(safe-area-inset-bottom));
+}
+.nav-inner{ max-width:520px; margin:0 auto; display:flex; justify-content:space-around; }
+.nav-item{ display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-3); font-size:11px; font-weight:700; cursor:pointer; }
+.nav-item.active{ color:var(--accent-2); }
+.nav-item .ic{ font-size:19px; }
+
+/* admin */
+.admin-menu{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.admin-menu .item{ padding:16px; text-align:center; cursor:pointer; font-weight:700; font-size:13px; }
+.admin-menu .item.active{ border-color:var(--accent-1); background:rgba(109,94,252,.12); }
+.req-card{ padding:16px; margin-bottom:12px; }
+.req-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.req-name{ font-weight:800; font-size:15px; }
+.req-sub{ font-size:12px; color:var(--text-3); margin-top:2px; }
+.req-amount{ font-size:18px; font-weight:800; color:var(--green); }
+.badge{ font-size:10px; font-weight:800; padding:4px 9px; border-radius:20px; text-transform:uppercase; letter-spacing:.4px; }
+.badge-pending{ background:rgba(255,181,71,.18); color:var(--amber); }
+.badge-paid{ background:rgba(61,220,132,.18); color:var(--green); }
+.badge-rejected{ background:rgba(255,92,122,.18); color:var(--red); }
+.req-detail{ font-size:13px; color:var(--text-2); margin:10px 0; line-height:1.6; }
+.req-actions{ display:flex; gap:8px; margin-top:10px; }
+.req-actions .btn{ padding:11px; font-size:13px; }
+.list-row{ display:flex; align-items:center; gap:10px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--glass-border); margin-bottom:10px; }
+.list-row .grow{ flex:1; min-width:0; }
+.list-row .title2{ font-weight:700; font-size:14px; }
+.list-row .sub2{ font-size:12px; color:var(--text-3); margin-top:2px; }
+.x-btn{ width:34px; height:34px; border-radius:10px; background:rgba(255,92,122,.15); color:var(--red); border:none; font-weight:800; cursor:pointer; }
+.form-label{ font-size:12px; font-weight:700; color:var(--text-2); margin:10px 0 6px; }
+.perm-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.perm-chip{ padding:10px; border-radius:12px; text-align:center; font-size:12px; font-weight:700; background:var(--glass); border:1px solid var(--glass-border); cursor:pointer; color:var(--text-2); }
+.perm-chip.on{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; border-color:transparent; }
+.empty{ text-align:center; padding:40px 10px; color:var(--text-3); font-size:14px; }
+.loader{ display:flex; align-items:center; justify-content:center; height:70vh; }
+.spin{ width:38px; height:38px; border-radius:50%; border:3px solid rgba(255,255,255,.15); border-top-color:var(--accent-2); animation:sp 0.8s linear infinite; }
+@keyframes sp{ to{ transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   FIREBASE + TELEGRAM INIT
+============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCtJClnuNMGQDTmndOKqeJjg-QAw3JybZg",
+  authDomain: "harf-c01ff.firebaseapp.com",
+  databaseURL: "https://harf-c01ff-default-rtdb.firebaseio.com",
+  projectId: "harf-c01ff",
+  storageBucket: "harf-c01ff.firebasestorage.app",
+  messagingSenderId: "165746750174",
+  appId: "1:165746750174:web:7786cb6da0e834678f084f"
+};
+firebase.initializeApp(firebaseConfig);
+const rtdb = firebase.database();
+
+// Backend API manzili — bot.py Railway'da qayerda ishga tushgan bo'lsa,
+// o'sha manzilni shu yerga qo'ying (masalan https://harf-production.up.railway.app).
+// Railway loyihangizning "Settings > Networking > Public Networking" bo'limida
+// avtomatik domen (Public Domain) ko'rsatilgan bo'ladi — o'shani ko'chiring.
+const API_BASE = "https://your-server-domain.example";
+if (API_BASE.includes("your-server-domain.example")) {
+  console.warn("DIQQAT: index.html ichidagi API_BASE hali sozlanmagan — Railway'dagi haqiqiy manzilni yozing.");
+}
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const MAIN_ADMIN_ID = 7158658026;
+const MIN_WITHDRAW = 75000;
+
+/* Shaffof (glassmorphism) mavzular — barchasi bir xil shaffoflikda,
+   faqat asosiy rang farq qiladi. */
+const THEMES = {
+  binafsha: { label:"Binafsha", '--accent-1':'#6d5efc', '--accent-2':'#8f7bff', '--accent-glow':'rgba(109,94,252,.45)' },
+  moviy:    { label:"Moviy",    '--accent-1':'#2f7bff', '--accent-2':'#5aa4ff', '--accent-glow':'rgba(47,123,255,.45)' },
+  yashil:   { label:"Yashil",   '--accent-1':'#1fb877', '--accent-2':'#3ddc84', '--accent-glow':'rgba(31,184,119,.45)' },
+  pushti:   { label:"Pushti",   '--accent-1':'#ff4d8d', '--accent-2':'#ff86b0', '--accent-glow':'rgba(255,77,141,.45)' },
+  amber:    { label:"Amber",    '--accent-1':'#ff9a3d', '--accent-2':'#ffc16b', '--accent-glow':'rgba(255,154,61,.45)' },
+};
+let CURRENT_THEME = localStorage.getItem('harfpay_theme') || 'binafsha';
+
+function applyTheme(id){
+  const th = THEMES[id] || THEMES.binafsha;
+  Object.entries(th).forEach(([k,v])=>{ if(k.startsWith('--')) document.documentElement.style.setProperty(k, v); });
+  CURRENT_THEME = id;
+  localStorage.setItem('harfpay_theme', id);
+}
+applyTheme(CURRENT_THEME);
+
+let CURRENT_USER = null;     // {id, first_name, ...}
+let TG_USER = null;          // telegram raw
+let PERMS = { is_admin:false, is_main_admin:false, permissions:{} };
+let VIEW_MODE = "user";      // 'user' | 'admin'
+let TAB = "tasks";           // user tabs: tasks | stats | profile
+let ADMIN_TAB = "requests";  // admin tabs
+let currentTask = null;
+let drawing = false, ctx = null, canvasEl = null;
+let heartbeatTimer = null;
+let adQueue = [];          // shu kirishda ko'rsatiladigan reklamalar navbati
+let adShowing = false;
+
+/* ============================================================
+   YORDAMCHI FUNKSIYALAR
+============================================================ */
+function fmt(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstElementChild; }
+function showToast(text, type="info"){
+  const old = document.querySelector('.toast'); if(old) old.remove();
+  const t = el(`<div class="toast"><div class="toast-inner toast-${type}">${text}</div></div>`);
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+/* Web Audio orqali sodda tovush effektlari — tashqi fayl kerak emas */
+let _actx = null;
+function playChime(kind='tick'){
+  try{
+    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === 'suspended') _actx.resume();
+    const notes = kind === 'success' ? [523.25, 659.25, 783.99] : [660];
+    notes.forEach((freq, i)=>{
+      const o = _actx.createOscillator();
+      const g = _actx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      const t0 = _actx.currentTime + i*0.09;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.18, t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+0.22);
+      o.connect(g); g.connect(_actx.destination);
+      o.start(t0); o.stop(t0+0.24);
+    });
+  }catch(e){ /* audio mavjud bo'lmasa jim o'tkazib yuboramiz */ }
+}
+async function apiGet(path, params){
+  const url = new URL(API_BASE + path);
+  Object.entries(params||{}).forEach(([k,v])=>url.searchParams.set(k,v));
+  const res = await fetch(url);
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || "Xatolik yuz berdi");
+  return data;
+}
+async function apiPost(path, body){
+  const res = await fetch(API_BASE + path, {
+    method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || "Xatolik yuz berdi");
+  return data;
+}
+
+/* Har bir til uchun TO'LIQ alifbo — tanlanganda shu harflarning
+   barchasi ketma-ket "ustidan yozib chiqiladi", oxirida bir martalik
+   mukofot balansga qo'shiladi. */
+const ALPHABETS = [
+  { id:"uz", emoji:"🇺🇿", name:"O'zbekcha", sub:"Lotin alifbosi",
+    letters:["A","B","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","X","Y","Z","O'","G'","Sh","Ch","Ng","'"] },
+  { id:"en", emoji:"🇬🇧", name:"Inglizcha", sub:"English alphabet",
+    letters:["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] },
+  { id:"ru", emoji:"🇷🇺", name:"Ruscha", sub:"Кирилл alifbosi",
+    letters:["А","Б","В","Г","Д","Е","Ё","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ъ","Ы","Ь","Э","Ю","Я"] },
+  { id:"ar", emoji:"🇸🇦", name:"Arabcha", sub:"الأبجدية العربية",
+    letters:["ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","ه","و","ي"] },
+  { id:"ja", emoji:"🇯🇵", name:"Yaponcha", sub:"Hiragana (asosiy)",
+    letters:["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ","た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ"] },
+];
+
+function generateAlphabetsIfNeeded(userData){
+  const ids = ALPHABETS.map(a=>a.id);
+  const existing = userData.alphabets || {};
+  const hasAll = ids.every(id => existing[id]);
+  if (hasAll) return existing;
+
+  const fresh = { ...existing };
+  ALPHABETS.forEach(a=>{
+    if (fresh[a.id]) return; // mavjud progressni buzmaymiz
+    const price = Math.round((300000 + a.letters.length*12000 + Math.random()*350000)/1000)*1000;
+    fresh[a.id] = { progress:0, total:a.letters.length, completed:false, completed_at:null, price };
+  });
+  rtdb.ref('users/'+CURRENT_USER.id+'/alphabets').set(fresh);
+  return fresh;
+}
+
+/* ============================================================
+   FOYDALANUVCHINI YUKLASH (bir marta yoziladi, keyin faqat o'qiladi)
+============================================================ */
+async function bootstrap(){
+  TG_USER = tg?.initDataUnsafe?.user || { id: 999999999, first_name: "Mehmon", username:"" };
+  const userRef = rtdb.ref('users/'+TG_USER.id);
+  const snap = await userRef.get();
+
+  if (!snap.exists()){
+    const fresh = {
+      id: TG_USER.id,
+      first_name: TG_USER.first_name || "Foydalanuvchi",
+      username: TG_USER.username || "",
+      balance: 0, total_earned: 0, total_time_seconds: 0,
+      is_banned: false,
+      created_at: new Date().toISOString(),
+      last_active: new Date().toISOString(),
+      alphabets: {}
+    };
+    await userRef.set(fresh);
+    CURRENT_USER = fresh;
+  } else {
+    CURRENT_USER = snap.val();
+    userRef.update({ last_active: new Date().toISOString() });
+  }
+  CURRENT_USER.alphabets = generateAlphabetsIfNeeded(CURRENT_USER);
+
+  // ruxsatlarni tekshirish
+  try{ PERMS = await apiGet('/api/permissions', {user_id: CURRENT_USER.id}); }
+  catch(e){ PERMS = {is_admin: CURRENT_USER.id===MAIN_ADMIN_ID, is_main_admin: CURRENT_USER.id===MAIN_ADMIN_ID, permissions:{}}; }
+
+  // real-vaqt tinglovchi — balans va boshqa o'zgarishlar uchun
+  userRef.on('value', (s)=>{
+    if (!s.exists()) return;
+    const fresh = s.val();
+    CURRENT_USER.balance = fresh.balance;
+    CURRENT_USER.total_earned = fresh.total_earned;
+    CURRENT_USER.alphabets = fresh.alphabets || CURRENT_USER.alphabets;
+    if (["tasks","profile","stats"].includes(TAB) && VIEW_MODE==='user') render();
+  });
+
+  startHeartbeat();
+  loadAdQueue();
+  render();
+}
+
+/* ============================================================
+   REKLAMA TIZIMI
+   Admin har bir reklama uchun: davomiylik, skip vaqti va
+   "bitta kirishda necha marta chiqishi"ni sozlaydi. Shu qiymatlar
+   asosida joriy sessiya uchun navbat tuziladi.
+============================================================ */
+async function loadAdQueue(){
+  try{
+    const snap = await rtdb.ref('ads').get();
+    const ads = snap.val() || {};
+    const queue = [];
+    Object.entries(ads).forEach(([id, a])=>{
+      if (!a.active) return;
+      const times = Math.max(1, Math.min(20, a.show_count || 1));
+      for (let i=0;i<times;i++) queue.push({ id, ...a });
+    });
+    // navbatni aralashtiramiz, lekin bitta reklama ketma-ket ikki marta chiqmasin
+    for (let i=queue.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [queue[i],queue[j]]=[queue[j],queue[i]]; }
+    adQueue = queue;
+    maybeShowNextAd();
+  }catch(e){ /* reklama yuklanmasa ham ilova ishlayveradi */ }
+}
+
+function maybeShowNextAd(){
+  if (adShowing || currentTask || !adQueue.length) return;
+  const ad = adQueue.shift();
+  showAd(ad);
+}
+
+function showAd(ad){
+  adShowing = true;
+  const root = el(`<div class="ad-overlay"></div>`);
+  const media =
+    ad.type === 'text' ? `<div class="ad-text">${ad.content}</div>` :
+    ad.type === 'image' ? `<img class="ad-media" src="${ad.content}">` :
+    `<video class="ad-media" src="${ad.content}" autoplay ${ad.type==='video'?'':'loop muted'} playsinline></video>`;
+  root.innerHTML = `
+    <div class="ad-topbar">
+      <div class="ad-badge">Reklama</div>
+      <div class="ad-skip disabled" id="adSkipBtn">O'tkazib yuborish ${ad.skip_after_seconds>0? '('+ad.skip_after_seconds+')' : ''}</div>
+    </div>
+    ${media}
+    ${ad.type==='text' && ad.text ? '' : (ad.text ? `<div class="ad-text" style="position:absolute; bottom:24px;">${ad.text}</div>` : '')}
+  `;
+  document.body.appendChild(root);
+
+  const skipBtn = root.querySelector('#adSkipBtn');
+  const finish = ()=>{
+    root.remove();
+    adShowing = false;
+    setTimeout(maybeShowNextAd, 400);
+  };
+
+  const skipAfter = Math.max(0, ad.skip_after_seconds || 0);
+  const duration = Math.max(skipAfter, ad.duration_seconds || 5);
+
+  let remaining = skipAfter;
+  if (remaining <= 0){
+    skipBtn.classList.remove('disabled');
+    skipBtn.textContent = "O'tkazib yuborish";
+  } else {
+    const tick = setInterval(()=>{
+      remaining -= 1;
+      if (remaining <= 0){
+        clearInterval(tick);
+        skipBtn.classList.remove('disabled');
+        skipBtn.textContent = "O'tkazib yuborish";
+      } else {
+        skipBtn.textContent = `O'tkazib yuborish (${remaining})`;
+      }
+    }, 1000);
+  }
+  skipBtn.onclick = ()=>{ if(!skipBtn.classList.contains('disabled')) finish(); };
+  setTimeout(finish, duration*1000);
+}
+
+function startHeartbeat(){
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(()=>{
+    apiPost('/api/heartbeat', {user_id: CURRENT_USER.id, seconds: 30}).catch(()=>{});
+  }, 30000);
+}
+
+/* ============================================================
+   RENDER — asosiy router
+============================================================ */
+function render(){
+  const app = document.getElementById('app');
+  if (!CURRENT_USER){ app.innerHTML = `<div class="loader"><div class="spin"></div></div>`; return; }
+
+  let body = "";
+  if (VIEW_MODE === 'admin' && PERMS.is_admin){
+    body = renderAdmin();
+  } else {
+    if (TAB==='tasks') body = currentTask ? renderDrawScreen() : renderTasksTab();
+    else if (TAB==='stats') body = renderStatsTab();
+    else body = renderProfileTab();
+  }
+
+  app.innerHTML = `
+    ${renderTopbar()}
+    ${body}
+    ${!currentTask ? renderBottomNav() : ""}
+  `;
+  attachHandlers();
+}
+
+function renderTopbar(){
+  if (!PERMS.is_admin) return `
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span> HarfPay 🇺🇿</div>
+    </div>`;
+  return `
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span> HarfPay 🇺🇿</div>
+      <div class="mode-switch">
+        <div class="mode-btn ${VIEW_MODE==='user'?'active':''}" data-act="mode-user">Foydalanuvchi</div>
+        <div class="mode-btn ${VIEW_MODE==='admin'?'active':''}" data-act="mode-admin">Admin panel</div>
+      </div>
+    </div>`;
+}
+
+function renderBottomNav(){
+  const items = [
+    {k:'tasks', ic:'💼', lb:'Topshiriqlar'},
+    {k:'stats', ic:'📊', lb:'Statistika'},
+    {k:'profile', ic:'👤', lb:'Profil'},
+  ];
+  return `<div class="bottom-nav"><div class="nav-inner">
+    ${items.map(i=>`
+      <div class="nav-item ${TAB===i.k?'active':''}" data-act="tab" data-tab="${i.k}">
+        <div class="ic">${i.ic}</div><div>${i.lb}</div>
+      </div>`).join('')}
+  </div></div>`;
+}
+
+/* ---------------- USER: TASKS TAB (alifbo tanlash) ---------------- */
+function renderTasksTab(){
+  const entries = ALPHABETS.map(a => [a, CURRENT_USER.alphabets?.[a.id] || {progress:0,total:a.letters.length,completed:false,price:0}]);
+  const doneCount = entries.filter(([,s])=>s.completed).length;
+  return `
+    <div class="hero">
+      <div class="label">Sizning balansingiz</div>
+      <div class="amount">${fmt(CURRENT_USER.balance)} <span>so'm</span></div>
+      <button class="btn btn-white" data-act="tab" data-tab="profile">💳 Pul yechib olish</button>
+    </div>
+    <h2 class="section-title">Alifbolar (${doneCount}/${entries.length} bajarildi)</h2>
+    ${entries.map(([a,s])=>{
+      const pct = Math.round((s.progress/s.total)*100);
+      const inProgress = s.progress>0 && !s.completed;
+      return `
+      <div class="glass task ${s.completed?'done':''}" style="flex-direction:column; align-items:stretch;">
+        <div class="hstack">
+          <div class="letter-box" style="font-size:26px;">${a.emoji}</div>
+          <div class="info">
+            <div class="name">${a.name}</div>
+            <div class="cat">${a.sub} • ${a.letters.length} ta harf</div>
+          </div>
+          <div class="price">
+            <div class="som">${fmt(s.price)}</div>
+            <div class="unit">bir martalik</div>
+          </div>
+        </div>
+        ${s.progress>0 ? `
+        <div style="height:6px; border-radius:6px; background:rgba(255,255,255,.08); margin:12px 0 2px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); border-radius:6px;"></div>
+        </div>
+        <div style="font-size:11px; color:var(--text-3); margin-bottom:6px;">${s.progress}/${s.total} harf yozildi</div>
+        ` : ''}
+        <button class="btn ${s.completed?'btn-ghost':'btn-primary'} task-btn" ${s.completed?'disabled':''} data-act="open-task" data-id="${a.id}">
+          ${s.completed ? '✅ Bajarildi' : inProgress ? "▶️ Davom ettirish" : 'Boshlash'}
+        </button>
+      </div>
+    `;}).join('')}
+  `;
+}
+
+/* ---------------- USER: DRAW SCREEN ---------------- */
+function renderDrawScreen(){
+  const { alpha, state, idx } = currentTask;
+  const letter = alpha.letters[idx];
+  const isLast = idx === alpha.letters.length - 1;
+  return `
+    <div class="draw-top">
+      <div class="chip">${alpha.emoji} ${alpha.name}</div>
+      <div class="chip">Harf ${idx+1} / ${alpha.letters.length}</div>
+    </div>
+    <div style="height:6px; border-radius:6px; background:rgba(255,255,255,.08); margin-bottom:14px; overflow:hidden;">
+      <div style="height:100%; width:${Math.round(((idx)/alpha.letters.length)*100)}%; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); border-radius:6px; transition:width .3s;"></div>
+    </div>
+    <div class="glass" style="text-align:center; padding:10px; margin-bottom:12px; font-size:13px; color:var(--text-2);">
+      "${letter}" harfini pastdagi maydonda qalam bilan chizing
+    </div>
+    <div class="canvas-wrap"><canvas id="drawCanvas"></canvas></div>
+    <div class="draw-actions">
+      <div class="icon-btn" data-act="clear-canvas">↺</div>
+      <button class="btn btn-primary" data-act="finish-task" style="flex:1;">${isLast ? "🎉 Yakunlash" : "Keyingisi →"}</button>
+    </div>
+    <div class="hint" data-act="cancel-task" style="margin-top:16px; text-decoration:underline; cursor:pointer;">Bekor qilish (progress saqlanadi)</div>
+  `;
+}
+
+function setupCanvas(letter){
+  canvasEl = document.getElementById('drawCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvasEl.getBoundingClientRect();
+  canvasEl.width = rect.width*dpr; canvasEl.height = 340*dpr;
+  ctx = canvasEl.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,rect.width,340);
+  ctx.font = "260px Georgia, serif";
+  ctx.fillStyle = "rgba(0,0,0,.08)";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(letter, rect.width/2, 175);
+  ctx.strokeStyle = "#111"; ctx.lineWidth = 7; ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  let drawingNow=false, last=null;
+  const pos = (e)=>{
+    const r = canvasEl.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  };
+  const start = (e)=>{ drawingNow=true; last=pos(e); e.preventDefault(); };
+  const move = (e)=>{
+    if(!drawingNow) return;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    last = p; e.preventDefault();
+  };
+  const end = ()=>{ drawingNow=false; };
+  canvasEl.addEventListener('mousedown', start); canvasEl.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  canvasEl.addEventListener('touchstart', start, {passive:false}); canvasEl.addEventListener('touchmove', move, {passive:false}); canvasEl.addEventListener('touchend', end);
+  canvasEl._letter = letter; canvasEl._rectW = rect.width;
+}
+
+/* ---------------- USER: STATS TAB ---------------- */
+function renderStatsTab(){
+  const states = Object.values(CURRENT_USER.alphabets||{});
+  const done = states.filter(s=>s.completed).length;
+  const lettersWritten = states.reduce((sum,s)=>sum+(s.progress||0),0);
+  return `
+    <h2 class="section-title">Statistika</h2>
+    <div class="glass card">
+      <div style="font-size:13px;color:var(--text-2);">Jami ishlangan</div>
+      <div style="font-size:30px;font-weight:800;margin-top:4px;">${fmt(CURRENT_USER.balance + (CURRENT_USER.total_earned||0)*0)} so'm</div>
+    </div>
+    <div class="stat-grid">
+      <div class="glass stat-box"><div class="num">${lettersWritten}</div><div class="lbl">Yozilgan harflar</div></div>
+      <div class="glass stat-box"><div class="num">${done}</div><div class="lbl">Bajarilgan alifbolar</div></div>
+    </div>
+    <div class="glass level-row">
+      <div class="level-ring"></div>
+      <div>
+        <div style="font-size:12px;color:var(--text-2);">Sizning darajangiz</div>
+        <div style="font-weight:800;">${done<3?"Boshlang'ich":done<10?"O'rta":"Yuqori"}</div>
+        <div style="font-size:12px;color:var(--text-3);">${done<3?1:done<10?2:3}-daraja</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- USER: PROFILE TAB ---------------- */
+let withdrawMethod = "phone";
+let selectedBank = "HUMO";
+
+function renderProfileTab(){
+  return `
+    <h2 class="section-title">Profil</h2>
+    <div class="glass card hstack" style="gap:14px;">
+      <div style="width:52px;height:52px;border-radius:50%;background:rgba(109,94,252,.25);display:flex;align-items:center;justify-content:center;font-weight:800;">
+        ${(CURRENT_USER.first_name||'U').slice(0,2).toUpperCase()}
+      </div>
+      <div>
+        <div style="font-weight:800;">${CURRENT_USER.first_name}</div>
+        <div style="font-size:12px;color:var(--accent-2);">Ijrochi</div>
+      </div>
+    </div>
+
+    <div class="glass card">
+      <div class="form-label" style="margin-top:0;">🎨 Mavzu</div>
+      <div class="theme-row">
+        ${Object.entries(THEMES).map(([id,th])=>`
+          <div class="theme-dot ${CURRENT_THEME===id?'active':''}" data-act="set-theme" data-theme="${id}"
+               style="background:linear-gradient(135deg,${th['--accent-1']},${th['--accent-2']});" title="${th.label}"></div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="glass avail">
+      <div class="lbl">Yechib olish uchun mavjud</div>
+      <div class="num">${fmt(CURRENT_USER.balance)} <span style="font-size:16px;">so'm</span></div>
+    </div>
+
+    <div class="seg">
+      <div class="seg-btn ${withdrawMethod==='phone'?'active':''}" data-act="wd-method" data-m="phone">Telefon raqam</div>
+      <div class="seg-btn ${withdrawMethod==='card'?'active':''}" data-act="wd-method" data-m="card">Karta raqamiga</div>
+    </div>
+
+    ${withdrawMethod==='phone'
+      ? `<input type="tel" id="wdRequisite" placeholder="Telefon raqami (12 ta raqam, 998...)" maxlength="12">`
+      : `<input type="text" id="wdRequisite" placeholder="Karta raqami (16 ta raqam)" maxlength="19">`
+    }
+
+    ${withdrawMethod==='phone' ? `
+    <div class="form-label">Bankni tanlang</div>
+    ${['HUMO','UZCARD','VISA'].map(b=>`
+      <div class="bank-row ${selectedBank===b?'active':''}" data-act="wd-bank" data-b="${b}">
+        <div class="ico" style="background:rgba(109,94,252,.2);">${b[0]}</div>
+        <div style="font-weight:700;">${b}</div>
+        <div class="radio"></div>
+      </div>`).join('')}
+    ` : ``}
+
+    <input type="number" id="wdAmount" placeholder="Summani kiriting (min ${fmt(MIN_WITHDRAW)} so'm)">
+
+    <button class="btn btn-primary" data-act="wd-submit">Yechib olishni buyurtma qilish</button>
+    <div class="hint">Minimal ${fmt(MIN_WITHDRAW)} so'm</div>
+  `;
+}
+
+/* ============================================================
+   OBUNA MODALI + YECHISH SO'ROVI
+============================================================ */
+async function handleWithdrawSubmit(){
+  const requisite = document.getElementById('wdRequisite').value.trim();
+  const amount = parseInt(document.getElementById('wdAmount').value || "0", 10);
+
+  if (withdrawMethod==='card'){
+    const digits = requisite.replace(/\D/g,'');
+    if (digits.length !== 16){ showToast("Karta raqami aniq 16 ta raqamdan iborat bo'lishi kerak", "error"); return; }
+  } else {
+    const digits = requisite.replace(/\D/g,'');
+    if (digits.length !== 12 || !digits.startsWith('998')){ showToast("Telefon raqam 998 bilan boshlanuvchi 12 ta raqam bo'lishi kerak", "error"); return; }
+  }
+  if (!amount || amount < MIN_WITHDRAW){ showToast(`Minimal summa ${fmt(MIN_WITHDRAW)} so'm`, "error"); return; }
+  if (amount > CURRENT_USER.balance){ showToast("Balansingiz yetarli emas", "error"); return; }
+
+  showModal(`<div style="text-align:center; padding:20px 0;"><div class="spin" style="margin:0 auto 14px;"></div>Obuna tekshirilmoqda...</div>`, false);
+  try{
+    const sub = await apiGet('/api/check-subscription', {user_id: CURRENT_USER.id});
+    if (!sub.subscribed){
+      renderSubscribeModal(sub.missing);
+      return;
+    }
+    closeModal();
+    const res = await apiPost('/api/withdraw-request', {
+      user_id: CURRENT_USER.id, amount, method: withdrawMethod,
+      requisite, bank: withdrawMethod==='phone' ? selectedBank : null
+    });
+    showToast("✅ So'rovingiz qabul qilindi! Admin tez orada ko'rib chiqadi.", "success");
+    document.getElementById('wdAmount').value = '';
+    document.getElementById('wdRequisite').value = '';
+  }catch(e){
+    closeModal();
+    showToast(e.message, "error");
+  }
+}
+
+function renderSubscribeModal(missing){
+  showModal(`
+    <div class="title">Obuna talab qilinadi</div>
+    <div class="desc">Pul yechib olishni yakunlash uchun loyiha homiylariga obuna bo'lishingiz kerak.</div>
+    ${missing.map(c=>`
+      <div class="channel-row">
+        <div class="name">${c.title}</div>
+        <a href="${c.url}" target="_blank" class="btn btn-ghost" style="width:auto;padding:9px 14px;">Ochish ↗</a>
+      </div>
+    `).join('')}
+    <button class="btn btn-primary" data-act="recheck-sub" style="margin-top:6px;">Obunani tekshirish</button>
+  `, true);
+}
+
+let modalRoot = null;
+function showModal(innerHtml, closable=true){
+  closeModal();
+  modalRoot = el(`<div class="overlay ${closable?'':'center'}"><div class="sheet">${innerHtml}</div></div>`);
+  document.body.appendChild(modalRoot);
+  attachHandlers();
+}
+function closeModal(){ if (modalRoot){ modalRoot.remove(); modalRoot=null; } }
+
+/* ============================================================
+   ADMIN PANEL
+============================================================ */
+let adminStats = null, adminWithdrawals = [], adminChannels = {}, adminAdmins = {}, adminAds = {};
+
+async function loadAdminData(){
+  const [stats, wd] = await Promise.all([
+    apiGet('/api/admin/stats', {admin_id: CURRENT_USER.id}).catch(()=>null),
+    apiGet('/api/admin/withdrawals', {admin_id: CURRENT_USER.id}).catch(()=>({items:[]})),
+  ]);
+  adminStats = stats; adminWithdrawals = wd.items || [];
+  const [chSnap, adSnap, admSnap] = await Promise.all([
+    rtdb.ref('channels').get(), rtdb.ref('ads').get(), rtdb.ref('admins').get()
+  ]);
+  adminChannels = chSnap.val() || {};
+  adminAds = adSnap.val() || {};
+  adminAdmins = admSnap.val() || {};
+  render();
+}
+
+function renderAdmin(){
+  const menu = [
+    {k:'requests', ic:'💸', lb:"So'rovlar", perm:'withdrawals'},
+    {k:'stats', ic:'📈', lb:'Statistika', perm:'stats'},
+    {k:'channels', ic:'📢', lb:'Kanallar', perm:'channels'},
+    {k:'admins', ic:'🛡️', lb:'Adminlar', perm:'admins'},
+  ];
+  if (PERMS.is_main_admin) menu.push({k:'ads', ic:'🎬', lb:'Reklama', perm:'ads'});
+
+  let content = "";
+  if (!adminStats && ADMIN_TAB!=='ads') content = `<div class="loader"><div class="spin"></div></div>`;
+  else if (ADMIN_TAB==='requests') content = renderAdminRequests();
+  else if (ADMIN_TAB==='stats') content = renderAdminStats();
+  else if (ADMIN_TAB==='channels') content = renderAdminChannels();
+  else if (ADMIN_TAB==='admins') content = renderAdminAdmins();
+  else if (ADMIN_TAB==='ads') content = renderAdminAds();
+
+  return `
+    <div class="admin-menu">
+      ${menu.map(m=>`<div class="glass item ${ADMIN_TAB===m.k?'active':''}" data-act="admin-tab" data-t="${m.k}">${m.ic} ${m.lb}</div>`).join('')}
+    </div>
+    ${content}
+  `;
+}
+
+function renderAdminRequests(){
+  if (!adminWithdrawals.length) return `<div class="empty">Hozircha so'rovlar yo'q</div>`;
+  return adminWithdrawals.map(r=>`
+    <div class="glass req-card">
+      <div class="req-top">
+        <div>
+          <div class="req-name">${r.name || 'Foydalanuvchi'} <span style="color:var(--text-3); font-weight:500; font-size:12px;">#${r.user_id}</span></div>
+          <div class="req-sub">${new Date(r.created_at).toLocaleString('uz-UZ')}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="req-amount">${fmt(r.amount)} so'm</div>
+          <span class="badge badge-${r.status}">${r.status==='pending'?'Kutilmoqda':r.status==='paid'?"To'landi":'Rad etildi'}</span>
+        </div>
+      </div>
+      <div class="req-detail">
+        💳 ${r.method==='card'?'Karta':'Telefon'}: <b>${r.requisite}</b> ${r.bank?`(${r.bank})`:''}
+        ${r.admin_note?`<br>📝 Izoh: ${r.admin_note}`:''}
+      </div>
+      ${r.status==='pending' ? `
+        <div class="req-actions">
+          <button class="btn btn-green" data-act="wd-paid" data-id="${r.id}">✅ To'landi</button>
+          <button class="btn btn-danger" data-act="wd-reject" data-id="${r.id}">❌ Rad etish</button>
+          <button class="btn btn-ghost" data-act="wd-msg" data-id="${r.user_id}" style="flex:0 0 46px;">✉️</button>
+        </div>
+      ` : `
+        <button class="btn btn-ghost" data-act="wd-msg" data-id="${r.user_id}">✉️ Xabar yuborish</button>
+      `}
+    </div>
+  `).join('');
+}
+
+function renderAdminStats(){
+  const s = adminStats || {};
+  const jp = s.joined_by_period || {};
+  const hours = Math.round((s.total_time_seconds||0)/3600);
+  return `
+    <div class="stat-grid">
+      <div class="glass stat-box"><div class="num">${s.pending_requests ?? '-'}</div><div class="lbl">So'rov yuborganlar (kutilmoqda)</div></div>
+      <div class="glass stat-box"><div class="num">${fmt(s.total_balance||0)}</div><div class="lbl">Jami balans (so'm)</div></div>
+      <div class="glass stat-box"><div class="num">${s.total_users ?? '-'}</div><div class="lbl">Jami foydalanuvchilar</div></div>
+      <div class="glass stat-box"><div class="num">${hours}</div><div class="lbl">Jami vaqt (soat)</div></div>
+    </div>
+    <h2 class="section-title">Vaqt bo'yicha qo'shilganlar</h2>
+    <div class="glass card">
+      ${[['1_soat','1 soat ichida'],['1_kun','1 kun ichida'],['6_kun','6 kun ichida'],['10_kun','10 kun ichida'],['1_oy','1 oy ichida'],['5_oy','5 oy ichida']].map(([k,lb])=>`
+        <div class="hstack" style="padding:8px 0; border-bottom:1px solid var(--glass-border);">
+          <div style="color:var(--text-2); font-size:13px;">${lb}</div><div class="spacer"></div><div style="font-weight:800;">${jp[k] ?? 0}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderAdminChannels(){
+  const rows = Object.entries(adminChannels);
+  return `
+    <div class="glass card">
+      <div class="form-label">Kanal nomi</div>
+      <input type="text" id="chTitle" placeholder="Masalan: HarfPay Rasmiy kanal">
+      <div class="form-label">Kanal havolasi</div>
+      <input type="text" id="chUrl" placeholder="https://t.me/kanal_nomi">
+      <div class="form-label">Chat ID (raqamli, masalan -1001234567890)</div>
+      <input type="text" id="chChatId" placeholder="-100...">
+      <div class="seg">
+        <div class="seg-btn active" id="chTypeOpen" data-act="ch-type" data-v="open">Ochiq kanal</div>
+        <div class="seg-btn" id="chTypeClosed" data-act="ch-type" data-v="closed">Yopiq kanal</div>
+      </div>
+      <button class="btn btn-primary" data-act="ch-add">+ Kanal qo'shish</button>
+    </div>
+    <h2 class="section-title">Faol kanallar</h2>
+    ${rows.length ? rows.map(([id,c])=>`
+      <div class="list-row">
+        <div class="grow">
+          <div class="title2">${c.title} ${c.type==='closed'?'🔒':'🌐'}</div>
+          <div class="sub2">${c.chat_id}</div>
+        </div>
+        <button class="x-btn" data-act="ch-del" data-id="${id}">✕</button>
+      </div>
+    `).join('') : `<div class="empty">Kanallar qo'shilmagan</div>`}
+  `;
+}
+
+let newChannelType = "open";
+let newAdminPerms = {stats:false, channels:false, admins:false, withdrawals:true};
+
+function renderAdminAdmins(){
+  const rows = Object.entries(adminAdmins);
+  const permKeys = [['stats','Statistika'],['channels','Kanallar'],['admins','Adminlar'],['withdrawals',"So'rovlar"]];
+  return `
+    ${PERMS.is_main_admin ? `
+    <div class="glass card">
+      <div class="form-label">Yangi admin Telegram ID</div>
+      <input type="text" id="newAdminId" placeholder="Masalan: 123456789">
+      <div class="form-label">Ruxsatlar</div>
+      <div class="perm-grid">
+        ${permKeys.map(([k,lb])=>`<div class="perm-chip ${newAdminPerms[k]?'on':''}" data-act="perm-toggle" data-k="${k}">${lb}</div>`).join('')}
+      </div>
+      <button class="btn btn-primary" data-act="admin-add">+ Admin qo'shish</button>
+    </div>` : ''}
+    <h2 class="section-title">Adminlar ro'yxati</h2>
+    <div class="list-row"><div class="grow"><div class="title2">Bosh admin</div><div class="sub2">#${MAIN_ADMIN_ID}</div></div></div>
+    ${rows.map(([id,a])=>`
+      <div class="list-row">
+        <div class="grow">
+          <div class="title2">Admin</div>
+          <div class="sub2">#${id} — ${Object.entries(a.permissions||{}).filter(([,v])=>v).map(([k])=>k).join(', ')||'huquqsiz'}</div>
+        </div>
+        ${PERMS.is_main_admin ? `<button class="x-btn" data-act="admin-del" data-id="${id}">✕</button>` : ''}
+      </div>
+    `).join('')}
+  `;
+}
+
+let newAdType = "text";
+function renderAdminAds(){
+  const rows = Object.entries(adminAds);
+  return `
+    <div class="glass card">
+      <div class="form-label">Reklama turi</div>
+      <div class="seg">
+        ${['text','image','video','gif'].map(t=>`<div class="seg-btn ${newAdType===t?'active':''}" data-act="ad-type" data-v="${t}">${t.toUpperCase()}</div>`).join('')}
+      </div>
+      <div class="form-label">${newAdType==='text' ? 'Matn' : 'Fayl URL manzili'}</div>
+      <input type="text" id="adContent" placeholder="${newAdType==='text' ? 'Reklama matni' : 'https://...'}">
+      <div class="form-label">Ko'rsatish davomiyligi (soniya)</div>
+      <input type="number" id="adDuration" placeholder="Masalan: 5">
+      <div class="form-label">"Skip" necha soniyadan keyin chiqadi</div>
+      <input type="number" id="adSkip" placeholder="0 dan boshlab">
+      <div class="form-label">Bitta kirishda necha marta chiqadi (1-20)</div>
+      <input type="number" id="adCount" placeholder="Masalan: 3">
+      <button class="btn btn-primary" data-act="ad-add">+ Reklama qo'shish</button>
+    </div>
+    <h2 class="section-title">Faol reklamalar</h2>
+    ${rows.length ? rows.map(([id,a])=>`
+      <div class="list-row">
+        <div class="grow">
+          <div class="title2">${a.type.toUpperCase()} — ${a.duration_seconds}s</div>
+          <div class="sub2">Skip: ${a.skip_after_seconds}s • ${a.show_count}x/kirish</div>
+        </div>
+        <button class="x-btn" data-act="ad-del" data-id="${id}">✕</button>
+      </div>
+    `).join('') : `<div class="empty">Reklamalar qo'shilmagan</div>`}
+  `;
+}
+
+/* ============================================================
+   EVENT HANDLERS
+============================================================ */
+function attachHandlers(){
+  document.querySelectorAll('[data-act]').forEach(node=>{
+    node.onclick = async (e)=>{
+      const act = node.dataset.act;
+      try{
+        if (act==='tab'){ TAB = node.dataset.tab; currentTask=null; render(); maybeShowNextAd(); }
+        else if (act==='set-theme'){ applyTheme(node.dataset.theme); render(); }
+        else if (act==='mode-user'){ VIEW_MODE='user'; render(); }
+        else if (act==='mode-admin'){ VIEW_MODE='admin'; ADMIN_TAB='requests'; render(); loadAdminData(); }
+        else if (act==='admin-tab'){ ADMIN_TAB=node.dataset.t; render(); if(ADMIN_TAB!=='ads') loadAdminData(); }
+        else if (act==='open-task'){ openTask(node.dataset.id); }
+        else if (act==='clear-canvas'){ setupCanvas(canvasEl._letter); }
+        else if (act==='finish-task'){ finishTask(); }
+        else if (act==='cancel-task'){ currentTask=null; render(); }
+        else if (act==='wd-method'){ withdrawMethod=node.dataset.m; render(); }
+        else if (act==='wd-bank'){ selectedBank=node.dataset.b; render(); }
+        else if (act==='wd-submit'){ handleWithdrawSubmit(); }
+        else if (act==='recheck-sub'){ closeModal(); handleWithdrawSubmit(); }
+        else if (act==='wd-paid'){ processWithdraw(node.dataset.id,'paid'); }
+        else if (act==='wd-reject'){ processWithdraw(node.dataset.id,'rejected'); }
+        else if (act==='wd-msg'){ promptMessageUser(node.dataset.id); }
+        else if (act==='ch-type'){ newChannelType=node.dataset.v; document.getElementById('chTypeOpen').classList.toggle('active', newChannelType==='open'); document.getElementById('chTypeClosed').classList.toggle('active', newChannelType==='closed'); }
+        else if (act==='ch-add'){ addChannel(); }
+        else if (act==='ch-del'){ deleteChannel(node.dataset.id); }
+        else if (act==='perm-toggle'){ const k=node.dataset.k; newAdminPerms[k]=!newAdminPerms[k]; render(); }
+        else if (act==='admin-add'){ addAdmin(); }
+        else if (act==='admin-del'){ deleteAdmin(node.dataset.id); }
+        else if (act==='ad-type'){ newAdType=node.dataset.v; render(); }
+        else if (act==='ad-add'){ addAd(); }
+        else if (act==='ad-del'){ deleteAd(node.dataset.id); }
+      }catch(err){ showToast(err.message || "Xatolik", "error"); }
+    };
+  });
+}
+
+function openTask(id){
+  const alpha = ALPHABETS.find(a=>a.id===id);
+  const state = CURRENT_USER.alphabets[id];
+  if (!alpha || state.completed) return;
+  currentTask = { alpha, state, idx: state.progress || 0 };
+  render();
+  setTimeout(()=>setupCanvas(alpha.letters[currentTask.idx]), 30);
+}
+
+async function finishTask(){
+  const { alpha, idx } = currentTask;
+  const nextIdx = idx + 1;
+  const path = `users/${CURRENT_USER.id}/alphabets/${alpha.id}`;
+
+  if (nextIdx >= alpha.letters.length){
+    // alifboning barcha harflari yozildi — bir martalik mukofot
+    const price = CURRENT_USER.alphabets[alpha.id].price;
+    await rtdb.ref(path).update({ progress: nextIdx, completed:true, completed_at: new Date().toISOString() });
+    await rtdb.ref(`users/${CURRENT_USER.id}`).update({
+      balance: (CURRENT_USER.balance||0) + price,
+      total_earned: (CURRENT_USER.total_earned||0) + price,
+    });
+    currentTask = null;
+    render();
+    playChime('success');
+    showToast(`🎉 ${alpha.name} alifbosi bajarildi, hisobingizga pul qo'shildi!`, "success");
+  } else {
+    await rtdb.ref(path).update({ progress: nextIdx });
+    currentTask.idx = nextIdx;
+    currentTask.state = { ...currentTask.state, progress: nextIdx };
+    playChime('tick');
+    render();
+    setTimeout(()=>setupCanvas(alpha.letters[nextIdx]), 30);
+  }
+}
+
+async function processWithdraw(id, action){
+  let note = "";
+  if (action==='rejected'){ note = prompt("Rad etish sababi (ixtiyoriy):") || ""; }
+  await apiPost('/api/admin/process-withdraw', { admin_id: CURRENT_USER.id, request_id:id, action, note, notify:true });
+  showToast(action==='paid' ? "✅ To'lov tasdiqlandi" : "❌ So'rov rad etildi", "success");
+  loadAdminData();
+}
+
+async function promptMessageUser(userId){
+  const text = prompt("Foydalanuvchiga yuboriladigan xabar matnini kiriting:");
+  if (!text) return;
+  await apiPost('/api/admin/message-user', { admin_id: CURRENT_USER.id, user_id: parseInt(userId), text });
+  showToast("✉️ Xabar yuborildi", "success");
+}
+
+async function addChannel(){
+  const title = document.getElementById('chTitle').value.trim();
+  const url = document.getElementById('chUrl').value.trim();
+  const chat_id = document.getElementById('chChatId').value.trim();
+  if (!title || !url || !chat_id){ showToast("Barcha maydonlarni to'ldiring", "error"); return; }
+  await apiPost('/api/admin/channels/add', { admin_id: CURRENT_USER.id, title, url, chat_id, type:newChannelType });
+  showToast("✅ Kanal qo'shildi", "success");
+  loadAdminData();
+}
+async function deleteChannel(id){
+  await apiPost('/api/admin/channels/delete', { admin_id: CURRENT_USER.id, channel_id:id });
+  showToast("Kanal o'chirildi", "info");
+  loadAdminData();
+}
+
+async function addAdmin(){
+  const idVal = document.getElementById('newAdminId').value.trim();
+  if (!idVal){ showToast("ID kiriting", "error"); return; }
+  await apiPost('/api/admin/admins/add', { admin_id: CURRENT_USER.id, new_admin_id: parseInt(idVal), permissions:newAdminPerms });
+  showToast("✅ Admin qo'shildi", "success");
+  loadAdminData();
+}
+async function deleteAdmin(id){
+  await apiPost('/api/admin/admins/delete', { admin_id: CURRENT_USER.id, target_admin_id: parseInt(id) });
+  showToast("Admin o'chirildi", "info");
+  loadAdminData();
+}
+
+async function addAd(){
+  const content = document.getElementById('adContent').value.trim();
+  const duration_seconds = parseInt(document.getElementById('adDuration').value || "0");
+  const skip_after_seconds = parseInt(document.getElementById('adSkip').value || "0");
+  const show_count = parseInt(document.getElementById('adCount').value || "1");
+  if (!content || !duration_seconds){ showToast("Majburiy maydonlarni to'ldiring", "error"); return; }
+  await apiPost('/api/admin/ads/add', { admin_id: CURRENT_USER.id, ad_type:newAdType, content, duration_seconds, skip_after_seconds, show_count });
+  showToast("✅ Reklama qo'shildi", "success");
+  loadAdminData();
+}
+async function deleteAd(id){
+  await apiPost('/api/admin/ads/delete', { admin_id: CURRENT_USER.id, ad_id:id });
+  showToast("Reklama o'chirildi", "info");
+  loadAdminData();
+}
+
+/* ============================================================
+   START
+============================================================ */
+document.getElementById('app').innerHTML = `<div class="loader"><div class="spin"></div></div>`;
+bootstrap().catch(err=>{
+  console.error(err);
+  document.getElementById('app').innerHTML = `
+    <div style="padding:40px 20px; text-align:center;">
+      <div style="font-size:40px; margin-bottom:14px;">⚠️</div>
+      <div style="font-weight:800; margin-bottom:8px;">Ilova ochilmadi</div>
+      <div style="color:var(--text-2); font-size:13px; line-height:1.5;">
+        Bu sahifa faylni to'g'ridan-to'g'ri (masalan yuklab olingan fayl orqali) ochganda ishlamaydi.<br><br>
+        index.html'ni https manzilga joylang (Railway/Firebase Hosting/GitHub Pages) va Telegram bot orqali "Boshlash" tugmasi bilan oching.
+        <br><br><span style="color:var(--text-3); font-size:11px;">${(err && err.message) ? err.message : err}</span>
+      </div>
+    </div>`;
+});
+</script>
+</body>
+</html>
